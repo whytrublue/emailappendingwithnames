@@ -146,14 +146,14 @@ if uploaded_file is not None:
 
         # Live Timer
         start_time = time.time()
-        timer_placeholder = st.empty()
         stop_timer = threading.Event()
 
         def update_timer():
             while not stop_timer.is_set():
                 elapsed_time = int(time.time() - start_time)
-                timer_placeholder.write(f"⏳ **Elapsed Time:** {elapsed_time} sec")
+                st.write(f"⏳ **Elapsed Time:** {elapsed_time} sec")
                 time.sleep(1)
+                st.experimental_rerun()
 
         # Start Timer Thread
         timer_thread = threading.Thread(target=update_timer, daemon=True)
