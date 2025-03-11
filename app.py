@@ -63,9 +63,13 @@ def smtp_check(email):
         return False
 
 # Thread function
-def process_emails(queue, results, progress, total, start_time):
+def process_emails(queue, results, progress, total, start_time, lock):
     while not queue.empty():
         first, last, domain = queue.get()
+
+        with lock:
+            progress[0] += 1
+            st.write(f"Processing email {progress[0]}/{total}")
 
         if domain.lower() in free_email_domains:
             results.append({
@@ -110,7 +114,6 @@ def process_emails(queue, results, progress, total, start_time):
             })
 
         queue.task_done()
-        progress[0] += 1
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
@@ -119,22 +122,16 @@ def generate_and_verify_emails(names_domains, num_threads=5):
     progress = [0]
     total = len(names_domains)
     start_time = time.time()
+    lock = threading.Lock()
     
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
 
     threads = []
     for _ in range(num_threads):
-        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time))
+        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time, lock))
         thread.start()
         threads.append(thread)
-
-    # Real-time Timer
-    with st.empty():
-        while any(thread.is_alive() for thread in threads):
-            elapsed_time = time.time() - start_time
-            st.write(f"Elapsed Time: {int(elapsed_time)} sec")
-            time.sleep(1)
 
     for thread in threads:
         thread.join()
@@ -163,6 +160,9 @@ if uploaded_file is not None:
         # Show total time taken in minutes and seconds
         minutes, seconds = divmod(total_time, 60)
         st.write(f"Total time taken: {int(minutes)} min {int(seconds)} sec")
+        
+        # Copy results button
+        st.button("Copy Verification Results", on_click=lambda: st.write(df.to_csv(index=False, sep='\t')))
         
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
