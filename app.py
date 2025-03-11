@@ -151,6 +151,6 @@ if uploaded_file is not None:
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
 
         # Copy results
-        st.text_area("Copy Results", df.to_csv(index=False), height=300)
+        st.text_area("Copy Results", df.to_csv(index=False, sep="\t"), height=300)
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
