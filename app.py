@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 import socket
 import threading
+import time
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -62,7 +63,7 @@ def smtp_check(email):
         return False
 
 # Thread function
-def process_emails(queue, results):
+def process_emails(queue, results, progress, total, start_time):
     while not queue.empty():
         first, last, domain = queue.get()
 
@@ -109,25 +110,31 @@ def process_emails(queue, results):
             })
 
         queue.task_done()
+        progress[0] += 1
+        elapsed_time = time.time() - start_time
+        st.session_state['progress'] = f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec"
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
     results = []
+    progress = [0]
+    total = len(names_domains)
+    start_time = time.time()
 
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
 
     threads = []
     for _ in range(num_threads):
-        thread = threading.Thread(target=process_emails, args=(queue, results))
+        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time))
         thread.start()
         threads.append(thread)
 
     for thread in threads:
         thread.join()
 
-    return results
+    return results, time.time() - start_time
 
 # Streamlit UI
 st.title("Email Verification Tool")
@@ -142,10 +149,18 @@ if uploaded_file is not None:
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
-        results = generate_and_verify_emails(names_domains)
+        st.session_state['progress'] = "Starting..."
+
+        results, total_time = generate_and_verify_emails(names_domains)
 
         df = pd.DataFrame(results)
         st.write(df)
+
+        # Show real-time progress
+        st.text(st.session_state['progress'])
+
+        # Show total time taken
+        st.write(f"Total time taken: {total_time:.2f} seconds")
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
