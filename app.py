@@ -5,7 +5,6 @@ import pandas as pd
 import streamlit as st
 import socket
 import threading
-import time
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -48,13 +47,13 @@ def domain_exists(domain):
         return False
 
 def smtp_check(email):
-    """Verify deliverability via SMTP on port 25."""
+    """Verify deliverability via SMTP."""
     domain = email.split('@')[-1]
     try:
         mx_records = dns.resolver.resolve(domain, 'MX', lifetime=5)
         mx_host = str(mx_records[0].exchange)
 
-        with smtplib.SMTP(mx_host, 25, timeout=5) as smtp:
+        with smtplib.SMTP(mx_host) as smtp:
             smtp.helo()
             smtp.mail('test@example.com')
             code, _ = smtp.rcpt(email)
@@ -63,13 +62,9 @@ def smtp_check(email):
         return False
 
 # Thread function
-def process_emails(queue, results, progress, total, start_time, lock):
+def process_emails(queue, results):
     while not queue.empty():
         first, last, domain = queue.get()
-
-        with lock:
-            progress[0] += 1
-            st.write(f"\rElapsed Time: {int(time.time() - start_time)} sec", end='')
 
         if domain.lower() in free_email_domains:
             results.append({
@@ -119,31 +114,24 @@ def process_emails(queue, results, progress, total, start_time, lock):
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
     results = []
-    progress = [0]
-    total = len(names_domains)
-    start_time = time.time()
-    lock = threading.Lock()
-    
+
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
 
     threads = []
     for _ in range(num_threads):
-        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time, lock))
+        thread = threading.Thread(target=process_emails, args=(queue, results))
         thread.start()
         threads.append(thread)
 
     for thread in threads:
         thread.join()
 
-    total_time = time.time() - start_time
-    return results, total_time
+    return results
 
 # Streamlit UI
 st.title("Email Verification Tool")
-st.markdown("**Please upload a CSV file with the following format:**")
-st.markdown("**First Name in Column A, Last Name in Column B, and Domain in Column C.**")
-st.write("Ensure the column names match exactly: 'First Name', 'Last Name', and 'Domain'.")
+st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
 
 uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
@@ -152,21 +140,27 @@ if uploaded_file is not None:
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
-        results, total_time = generate_and_verify_emails(names_domains)
-        
+        results = generate_and_verify_emails(names_domains)
+
         df = pd.DataFrame(results)
         st.write(df)
-        
-        # Show total time taken in minutes and seconds
-        minutes, seconds = divmod(total_time, 60)
-        st.write(f"Total time taken: {int(minutes)} min {int(seconds)} sec")
-        
-        # Copy results button
-        if st.button("Copy Verification Results"):
-            st.text_area("Verification Results", df.to_csv(index=False, sep='\t'))
-        
+
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
+
+# Streamlit UI
+st.title("Email Verification Tool")
+
+# Display bold instruction message
+st.markdown("**Please ensure your CSV file follows this format:**")
+st.markdown("**- First Name in Column A**")
+st.markdown("**- Last Name in Column B**")
+st.markdown("**- Domain in Column C**")
+st.markdown("**Use the exact column titles: 'First Name', 'Last Name', and 'Domain'.**")
+
+st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
+
+uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
