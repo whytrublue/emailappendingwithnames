@@ -48,13 +48,13 @@ def domain_exists(domain):
         return False
 
 def smtp_check(email):
-    """Verify deliverability via SMTP."""
+    """Verify deliverability via SMTP on port 25."""
     domain = email.split('@')[-1]
     try:
         mx_records = dns.resolver.resolve(domain, 'MX', lifetime=5)
         mx_host = str(mx_records[0].exchange)
 
-        with smtplib.SMTP(mx_host) as smtp:
+        with smtplib.SMTP(mx_host, 25, timeout=5) as smtp:
             smtp.helo()
             smtp.mail('test@example.com')
             code, _ = smtp.rcpt(email)
@@ -111,9 +111,6 @@ def process_emails(queue, results, progress, total, start_time):
 
         queue.task_done()
         progress[0] += 1
-        elapsed_time = time.time() - start_time
-        st.session_state['progress'] = f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec"
-        st.session_state['elapsed_time'] = elapsed_time
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
@@ -122,8 +119,7 @@ def generate_and_verify_emails(names_domains, num_threads=5):
     progress = [0]
     total = len(names_domains)
     start_time = time.time()
-    st.session_state['start_time'] = start_time
-
+    
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
 
@@ -133,10 +129,18 @@ def generate_and_verify_emails(names_domains, num_threads=5):
         thread.start()
         threads.append(thread)
 
+    # Real-time Timer
+    with st.empty():
+        while any(thread.is_alive() for thread in threads):
+            elapsed_time = time.time() - start_time
+            st.write(f"Elapsed Time: {int(elapsed_time)} sec")
+            time.sleep(1)
+
     for thread in threads:
         thread.join()
 
-    return results, time.time() - start_time
+    total_time = time.time() - start_time
+    return results, total_time
 
 # Streamlit UI
 st.title("Email Verification Tool")
@@ -151,34 +155,17 @@ if uploaded_file is not None:
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
-        st.session_state['progress'] = "Starting..."
-        st.session_state['elapsed_time'] = 0
-        start_time = time.time()
-
-        with st.empty():
-            while st.session_state.get('elapsed_time', 0) < 1:
-                elapsed_time = time.time() - start_time
-                st.session_state['elapsed_time'] = elapsed_time
-                st.write(f"Elapsed Time: {elapsed_time:.2f} sec")
-                time.sleep(1)
-
         results, total_time = generate_and_verify_emails(names_domains)
-
+        
         df = pd.DataFrame(results)
         st.write(df)
-
-        # Show real-time progress
-        st.text(st.session_state['progress'])
-
-        # Show total time taken
-        st.write(f"Total time taken: {total_time:.2f} seconds")
-
+        
+        # Show total time taken in minutes and seconds
+        minutes, seconds = divmod(total_time, 60)
+        st.write(f"Total time taken: {int(minutes)} min {int(seconds)} sec")
+        
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
-
-        # Copy results
-        results_text = df.to_csv(index=False, sep='\t')
-        st.text_area("Copy Results", results_text, height=200)
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
