@@ -4,7 +4,6 @@ import smtplib
 import pandas as pd
 import streamlit as st
 import socket
-import time
 import threading
 from queue import Queue
 
@@ -116,7 +115,7 @@ def process_emails(queue, results):
         queue.task_done()
 
 # Main function
-def generate_and_verify_emails(names_domains, num_threads=5):
+def generate_and_verify_emails(names_domains, num_threads=4):
     queue = Queue()
     results = []
 
