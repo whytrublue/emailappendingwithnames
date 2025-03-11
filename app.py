@@ -1,4 +1,3 @@
-
 import re
 import dns.resolver
 import smtplib
@@ -6,6 +5,8 @@ import pandas as pd
 import streamlit as st
 import socket
 import threading
+import time
+import pyperclip
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -33,7 +34,6 @@ free_email_domains = [
     "outlook.com", "icloud.com", "verizon.net", "protonmail.com", "zoho.com"
 ]
 
-# Functions
 def is_valid_email(email):
     """Check if the email has a valid syntax."""
     pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
@@ -62,7 +62,6 @@ def smtp_check(email):
     except Exception:
         return False
 
-# Thread function
 def process_emails(queue, results):
     while not queue.empty():
         first, last, domain = queue.get()
@@ -111,7 +110,6 @@ def process_emails(queue, results):
 
         queue.task_done()
 
-# Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
     results = []
@@ -132,7 +130,12 @@ def generate_and_verify_emails(names_domains, num_threads=5):
 
 # Streamlit UI
 st.title("Email Verification Tool")
-st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
+
+st.subheader("CSV File Format Requirement:")
+st.write("Ensure the uploaded CSV file contains the following exact column headings:")
+st.write("- **Column A:** First Name")
+st.write("- **Column B:** Last Name")
+st.write("- **Column C:** Domain")
 
 uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
@@ -141,10 +144,31 @@ if uploaded_file is not None:
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
-        results = generate_and_verify_emails(names_domains)
+        start_time = time.time()
 
+        timer_placeholder = st.empty()
+        stop_timer = threading.Event()
+
+        def update_timer():
+            while not stop_timer.is_set():
+                elapsed_time = int(time.time() - start_time)
+                timer_placeholder.write(f"⏳ Elapsed Time: {elapsed_time} sec")
+                time.sleep(1)
+
+        timer_thread = threading.Thread(target=update_timer)
+        timer_thread.start()
+        
+        results = generate_and_verify_emails(names_domains)
+        stop_timer.set()
+        timer_thread.join()
+        
         df = pd.DataFrame(results)
         st.write(df)
+        
+        # Copy to clipboard button
+        if st.button("Copy Email Verification"):
+            pyperclip.copy(df.to_csv(index=False, sep='\t'))
+            st.success("Results copied to clipboard! You can paste them directly into Excel.")
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
