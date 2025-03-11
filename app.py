@@ -6,7 +6,6 @@ import streamlit as st
 import socket
 import threading
 import time
-import pyperclip
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -172,16 +171,12 @@ if uploaded_file is not None:
         st.write("📊 **Verification Results:**")
         st.write(df)
 
-        # Copy to clipboard button
+        # Display results in a text area for copying
         df_text = df.to_csv(index=False, sep='\t')
-
-        if st.button("📋 Copy Email Verification"):
-            pyperclip.copy(df_text)
-            st.success("✅ Results copied to clipboard! Paste them into Excel.")
+        st.text_area("📋 Copy Results", df_text, height=200)
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("⬇️ Download Results", csv, "email_validation_results.csv", "text/csv")
-
     else:
         st.error("⚠️ CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
