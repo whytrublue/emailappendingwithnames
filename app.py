@@ -6,10 +6,7 @@ import streamlit as st
 import socket
 import threading
 import time
-import pyperclip
 from queue import Queue
-pip install pyperclip
-
 
 # Set a global timeout for network operations
 socket.setdefaulttimeout(5)
