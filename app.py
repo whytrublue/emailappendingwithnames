@@ -6,6 +6,7 @@ import streamlit as st
 import socket
 import threading
 import time
+import pyperclip
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -128,49 +129,59 @@ def generate_and_verify_emails(names_domains, num_threads=5):
     return results
 
 # Streamlit UI
-st.title("Email Verification Tool")
+st.title("📧 Email Verification Tool")
 
-st.subheader("CSV File Format Requirement:")
+st.subheader("📌 CSV File Format Requirement:")
 st.write("Ensure the uploaded CSV file contains the following exact column headings:")
 st.write("- **Column A:** First Name")
 st.write("- **Column B:** Last Name")
 st.write("- **Column C:** Domain")
 
-uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
+uploaded_file = st.file_uploader("📂 Upload CSV File", type=['csv'])
 
 if uploaded_file is not None:
     names_domains = pd.read_csv(uploaded_file)
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
-        st.write("Processing emails...")
-        start_time = time.time()
+        st.write("✅ File Uploaded! Processing emails...")
 
+        # Live Timer
+        start_time = time.time()
         timer_placeholder = st.empty()
         stop_timer = threading.Event()
 
         def update_timer():
             while not stop_timer.is_set():
                 elapsed_time = int(time.time() - start_time)
-                timer_placeholder.write(f"⏳ Elapsed Time: {elapsed_time} sec")
+                timer_placeholder.write(f"⏳ **Elapsed Time:** {elapsed_time} sec")
                 time.sleep(1)
 
-        timer_thread = threading.Thread(target=update_timer)
+        # Start Timer Thread
+        timer_thread = threading.Thread(target=update_timer, daemon=True)
         timer_thread.start()
-        
+
+        # Start Email Verification
         results = generate_and_verify_emails(names_domains)
+
+        # Stop Timer
         stop_timer.set()
         timer_thread.join()
-        
+
+        # Display Results
         df = pd.DataFrame(results)
+        st.write("📊 **Verification Results:**")
         st.write(df)
-        
+
         # Copy to clipboard button
-        if st.button("Copy Email Verification"):
-            pyperclip.copy(df.to_csv(index=False, sep='\t'))
-            st.success("Results copied to clipboard! You can paste them directly into Excel.")
+        df_text = df.to_csv(index=False, sep='\t')
+
+        if st.button("📋 Copy Email Verification"):
+            pyperclip.copy(df_text)
+            st.success("✅ Results copied to clipboard! Paste them into Excel.")
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
+        st.download_button("⬇️ Download Results", csv, "email_validation_results.csv", "text/csv")
+
     else:
-        st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
+        st.error("⚠️ CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
