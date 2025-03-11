@@ -131,7 +131,7 @@ def generate_and_verify_emails(names_domains, num_threads=5):
 
 # Streamlit UI
 st.title("Email Verification Tool")
-st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
+st.write("Upload a CSV file containing Exact Subject Line 'First Name in Column A', 'Last Name in Column B', and 'Domain in Column C'.")
 
 uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
