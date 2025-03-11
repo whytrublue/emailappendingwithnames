@@ -113,6 +113,7 @@ def process_emails(queue, results, progress, total, start_time):
         progress[0] += 1
         elapsed_time = time.time() - start_time
         st.session_state['progress'] = f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec"
+        st.session_state['elapsed_time'] = elapsed_time
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
@@ -121,6 +122,7 @@ def generate_and_verify_emails(names_domains, num_threads=5):
     progress = [0]
     total = len(names_domains)
     start_time = time.time()
+    st.session_state['start_time'] = start_time
 
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
@@ -150,6 +152,15 @@ if uploaded_file is not None:
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
         st.session_state['progress'] = "Starting..."
+        st.session_state['elapsed_time'] = 0
+        start_time = time.time()
+
+        with st.empty():
+            while st.session_state.get('elapsed_time', 0) < 1:
+                elapsed_time = time.time() - start_time
+                st.session_state['elapsed_time'] = elapsed_time
+                st.write(f"Elapsed Time: {elapsed_time:.2f} sec")
+                time.sleep(1)
 
         results, total_time = generate_and_verify_emails(names_domains)
 
