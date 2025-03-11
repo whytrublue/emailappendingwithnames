@@ -117,7 +117,7 @@ def process_emails(queue, results, progress, total, start_time, progress_text):
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
-    results =
+    results = [] # Corrected line
     progress = [0]
     total = len(names_domains)
     start_time = time.time()
@@ -127,7 +127,7 @@ def generate_and_verify_emails(names_domains, num_threads=5):
 
     progress_text = st.empty()  # Create an empty container for live updates
 
-    threads =
+    threads = []
     for _ in range(num_threads):
         thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time, progress_text))
         thread.start()
