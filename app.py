@@ -133,6 +133,11 @@ def generate_and_verify_emails(names_domains, num_threads=5):
         thread.start()
         threads.append(thread)
 
+    while any(thread.is_alive() for thread in threads):
+        elapsed_time = int(time.time() - start_time)
+        st.write(f"Elapsed Time: {elapsed_time} sec")
+        time.sleep(1)
+
     for thread in threads:
         thread.join()
 
@@ -157,12 +162,13 @@ if uploaded_file is not None:
         df = pd.DataFrame(results)
         st.write(df)
         
-        # Show total time taken in minutes and seconds
-        minutes, seconds = divmod(total_time, 60)
-        st.write(f"Total time taken: {int(minutes)} min {int(seconds)} sec")
+        # Show total time taken in minutes
+        minutes = total_time // 60
+        st.write(f"Total time taken: {int(minutes)} min")
         
         # Copy results button
-        st.button("Copy Verification Results", on_click=lambda: st.write(df.to_csv(index=False, sep='\t')))
+        if st.button("Copy Verification Results"):
+            st.write(df.to_csv(index=False, sep='\t'))
         
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
