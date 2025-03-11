@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 import socket
 import threading
+import time
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -47,13 +48,13 @@ def domain_exists(domain):
         return False
 
 def smtp_check(email):
-    """Verify deliverability via SMTP."""
+    """Verify deliverability via SMTP on port 25."""
     domain = email.split('@')[-1]
     try:
         mx_records = dns.resolver.resolve(domain, 'MX', lifetime=5)
         mx_host = str(mx_records[0].exchange)
 
-        with smtplib.SMTP(mx_host) as smtp:
+        with smtplib.SMTP(mx_host, 25, timeout=5) as smtp:
             smtp.helo()
             smtp.mail('test@example.com')
             code, _ = smtp.rcpt(email)
@@ -62,7 +63,7 @@ def smtp_check(email):
         return False
 
 # Thread function
-def process_emails(queue, results):
+def process_emails(queue, results, progress, total, start_time):
     while not queue.empty():
         first, last, domain = queue.get()
 
@@ -109,29 +110,39 @@ def process_emails(queue, results):
             })
 
         queue.task_done()
+        progress[0] += 1
+        elapsed_time = time.time() - start_time
+        st.session_state['progress'] = f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec"
+        st.session_state['elapsed_time'] = elapsed_time
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
     results = []
+    progress = [0]
+    total = len(names_domains)
+    start_time = time.time()
+    st.session_state['start_time'] = start_time
 
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
 
     threads = []
     for _ in range(num_threads):
-        thread = threading.Thread(target=process_emails, args=(queue, results))
+        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time))
         thread.start()
         threads.append(thread)
 
     for thread in threads:
         thread.join()
 
-    return results
+    return results, time.time() - start_time
 
 # Streamlit UI
 st.title("Email Verification Tool")
-st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
+st.markdown("**Please upload a CSV file with the following format:**")
+st.markdown("**First Name in Column A, Last Name in Column B, and Domain in Column C.**")
+st.write("Ensure the column names match exactly: 'First Name', 'Last Name', and 'Domain'.")
 
 uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
@@ -140,27 +151,34 @@ if uploaded_file is not None:
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
-        results = generate_and_verify_emails(names_domains)
+        st.session_state['progress'] = "Starting..."
+        st.session_state['elapsed_time'] = 0
+        start_time = time.time()
+
+        with st.empty():
+            while st.session_state.get('elapsed_time', 0) < 1:
+                elapsed_time = time.time() - start_time
+                st.session_state['elapsed_time'] = elapsed_time
+                st.write(f"Elapsed Time: {elapsed_time:.2f} sec")
+                time.sleep(1)
+
+        results, total_time = generate_and_verify_emails(names_domains)
 
         df = pd.DataFrame(results)
         st.write(df)
 
+        # Show real-time progress
+        st.text(st.session_state['progress'])
+
+        # Show total time taken
+        st.write(f"Total time taken: {total_time:.2f} seconds")
+
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
+
+        # Copy results
+        results_text = df.to_csv(index=False, sep='\t')
+        st.text_area("Copy Results", results_text, height=200)
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
-
-# Streamlit UI
-st.title("Email Verification Tool")
-
-# Display bold instruction message
-st.markdown("**Please ensure your CSV file follows this format:**")
-st.markdown("**- First Name in Column A**")
-st.markdown("**- Last Name in Column B**")
-st.markdown("**- Domain in Column C**")
-st.markdown("**Use the exact column titles: 'First Name', 'Last Name', and 'Domain'.**")
-
-st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
-
-uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
