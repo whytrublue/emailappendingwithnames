@@ -1,3 +1,4 @@
+
 import re
 import dns.resolver
 import smtplib
@@ -5,7 +6,6 @@ import pandas as pd
 import streamlit as st
 import socket
 import threading
-import time
 from queue import Queue
 
 # Set a global timeout for network operations
@@ -33,6 +33,7 @@ free_email_domains = [
     "outlook.com", "icloud.com", "verizon.net", "protonmail.com", "zoho.com"
 ]
 
+# Functions
 def is_valid_email(email):
     """Check if the email has a valid syntax."""
     pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
@@ -61,6 +62,7 @@ def smtp_check(email):
     except Exception:
         return False
 
+# Thread function
 def process_emails(queue, results):
     while not queue.empty():
         first, last, domain = queue.get()
@@ -109,6 +111,7 @@ def process_emails(queue, results):
 
         queue.task_done()
 
+# Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
     results = []
@@ -128,55 +131,23 @@ def generate_and_verify_emails(names_domains, num_threads=5):
     return results
 
 # Streamlit UI
-st.title("📧 Email Verification Tool")
+st.title("Email Verification Tool")
+st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
 
-st.subheader("📌 CSV File Format Requirement:")
-st.write("Ensure the uploaded CSV file contains the following exact column headings:")
-st.write("- **Column A:** First Name")
-st.write("- **Column B:** Last Name")
-st.write("- **Column C:** Domain")
-
-uploaded_file = st.file_uploader("📂 Upload CSV File", type=['csv'])
+uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
 if uploaded_file is not None:
     names_domains = pd.read_csv(uploaded_file)
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
-        st.write("✅ File Uploaded! Processing emails...")
-
-        # Live Timer
-        start_time = time.time()
-        stop_timer = threading.Event()
-
-        def update_timer():
-            while not stop_timer.is_set():
-                elapsed_time = int(time.time() - start_time)
-                st.write(f"⏳ **Elapsed Time:** {elapsed_time} sec")
-                time.sleep(1)
-                st.experimental_rerun()
-
-        # Start Timer Thread
-        timer_thread = threading.Thread(target=update_timer, daemon=True)
-        timer_thread.start()
-
-        # Start Email Verification
+        st.write("Processing emails...")
         results = generate_and_verify_emails(names_domains)
 
-        # Stop Timer
-        stop_timer.set()
-        timer_thread.join()
-
-        # Display Results
         df = pd.DataFrame(results)
-        st.write("📊 **Verification Results:**")
         st.write(df)
-
-        # Display results in a text area for copying
-        df_text = df.to_csv(index=False, sep='\t')
-        st.text_area("📋 Copy Results", df_text, height=200)
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("⬇️ Download Results", csv, "email_validation_results.csv", "text/csv")
+        st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
     else:
-        st.error("⚠️ CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
+        st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
