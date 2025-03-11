@@ -1,4 +1,3 @@
-
 import re
 import dns.resolver
 import smtplib
@@ -7,6 +6,7 @@ import streamlit as st
 import socket
 import threading
 from queue import Queue
+import pyperclip
 
 # Set a global timeout for network operations
 socket.setdefaulttimeout(5)
@@ -149,5 +149,11 @@ if uploaded_file is not None:
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
+
+        # Copy results
+        copy_text = df.to_csv(index=False, sep='\t')  # Tab-separated for Excel
+        if st.button("Copy Results"):
+            pyperclip.copy(copy_text)
+            st.success("Results copied! You can paste them into Excel.")
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
