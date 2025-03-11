@@ -8,7 +8,111 @@ import threading
 import time
 from queue import Queue
 
-# ... (rest of the functions: is_valid_email, domain_exists, smtp_check, process_emails) ...
+# Set a global timeout for network operations
+socket.setdefaulttimeout(5)
+
+# Email formats
+email_formats = [
+    "{first}.{last}@{domain}",
+    "{first[0]}.{last}@{domain}",
+    "{first}.{last[0]}@{domain}",
+    "{first[0]}.{last[0]}@{domain}",
+    "{last}.{first}@{domain}",
+    "{last}.{first[0]}@{domain}",
+    "{first}_{last}@{domain}",
+    "{first}@{domain}",
+    "{last}@{domain}",
+    "{first}{last}@{domain}",
+    "{first[0]}{last}@{domain}",
+    "{first}{last[0]}@{domain}",
+]
+
+# Free email domains to skip
+free_email_domains = [
+    "gmail.com", "yahoo.com", "hotmail.com", "aol.com", "live.com",
+    "outlook.com", "icloud.com", "verizon.net", "protonmail.com", "zoho.com"
+]
+
+# Functions
+def is_valid_email(email):
+    """Check if the email has a valid syntax."""
+    pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    return re.match(pattern, email)
+
+def domain_exists(domain):
+    """Check if the domain has valid MX records."""
+    try:
+        dns.resolver.resolve(domain, 'MX', lifetime=5)
+        return True
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.Timeout):
+        return False
+
+def smtp_check(email):
+    """Verify deliverability via SMTP on port 25."""
+    domain = email.split('@')[-1]
+    try:
+        mx_records = dns.resolver.resolve(domain, 'MX', lifetime=5)
+        mx_host = str(mx_records[0].exchange)
+
+        with smtplib.SMTP(mx_host, 25, timeout=5) as smtp:
+            smtp.helo()
+            smtp.mail('test@example.com')
+            code, _ = smtp.rcpt(email)
+            return code == 250
+    except Exception:
+        return False
+
+# Thread function
+def process_emails(queue, results, progress, total, start_time, progress_text):
+    while not queue.empty():
+        first, last, domain = queue.get()
+
+        if domain.lower() in free_email_domains:
+            results.append({
+                "First Name": first,
+                "Last Name": last,
+                "Email": f"{first.lower()}.{last.lower()}@{domain.lower()}",
+                "Status": "Skipped (Free Email Domain)"
+            })
+            queue.task_done()
+            continue
+
+        if not domain_exists(domain):
+            results.append({
+                "First Name": first,
+                "Last Name": last,
+                "Email": f"{domain}",
+                "Status": "Invalid"
+            })
+            queue.task_done()
+            continue
+
+        for format_ in email_formats:
+            email = format_.format(
+                first=first.lower(),
+                last=last.lower(),
+                domain=domain.lower()
+            )
+            if is_valid_email(email) and smtp_check(email):
+                results.append({
+                    "First Name": first,
+                    "Last Name": last,
+                    "Email": email,
+                    "Status": "Valid"
+                })
+                break
+        else:
+            results.append({
+                "First Name": first,
+                "Last Name": last,
+                "Email": f"{domain}",
+                "Status": "Invalid"
+            })
+
+        queue.task_done()
+        progress[0] += 1
+        elapsed_time = time.time() - start_time
+        progress_text.text(f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec")
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
@@ -52,13 +156,12 @@ if uploaded_file is not None:
         # Initialize an empty container for the timer
         timer_placeholder = st.empty()
         start_time = time.time()
+        stop_timer = threading.Event()
 
         def update_timer():
-            while True:
+            while not stop_timer.is_set():
                 elapsed_time = time.time() - start_time
                 timer_placeholder.text(f"Elapsed Time: {elapsed_time:.2f} sec")
-                if 'results' in locals() and len(results) == len(names_domains):
-                    break
                 time.sleep(0.1)
 
         timer_thread = threading.Thread(target=update_timer)
@@ -66,7 +169,8 @@ if uploaded_file is not None:
 
         results, total_time = generate_and_verify_emails(names_domains)
 
-        timer_thread.join() # wait for the timer thread to finish.
+        stop_timer.set()
+        timer_thread.join()
 
         df = pd.DataFrame(results)
         st.write(df)
