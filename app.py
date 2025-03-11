@@ -63,7 +63,7 @@ def smtp_check(email):
         return False
 
 # Thread function
-def process_emails(queue, results, progress, total, start_time):
+def process_emails(queue, results, progress, total, start_time, progress_text):
     while not queue.empty():
         first, last, domain = queue.get()
 
@@ -112,31 +112,32 @@ def process_emails(queue, results, progress, total, start_time):
         queue.task_done()
         progress[0] += 1
         elapsed_time = time.time() - start_time
-        st.session_state['progress'] = f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec"
-        st.session_state['elapsed_time'] = elapsed_time
+        progress_text.text(f"Processed: {progress[0]}/{total} | Elapsed Time: {elapsed_time:.2f} sec")
 
 # Main function
 def generate_and_verify_emails(names_domains, num_threads=5):
     queue = Queue()
-    results = []
+    results =
     progress = [0]
     total = len(names_domains)
     start_time = time.time()
-    st.session_state['start_time'] = start_time
 
     for _, row in names_domains.iterrows():
         queue.put((row['First Name'], row['Last Name'], row['Domain']))
 
-    threads = []
+    progress_text = st.empty()  # Create an empty container for live updates
+
+    threads =
     for _ in range(num_threads):
-        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time))
+        thread = threading.Thread(target=process_emails, args=(queue, results, progress, total, start_time, progress_text))
         thread.start()
         threads.append(thread)
 
     for thread in threads:
         thread.join()
 
-    return results, time.time() - start_time
+    total_time = time.time() - start_time
+    return results, total_time
 
 # Streamlit UI
 st.title("Email Verification Tool")
@@ -151,27 +152,15 @@ if uploaded_file is not None:
 
     if {'First Name', 'Last Name', 'Domain'}.issubset(names_domains.columns):
         st.write("Processing emails...")
-        st.session_state['progress'] = "Starting..."
-        st.session_state['elapsed_time'] = 0
-        start_time = time.time()
-
-        with st.empty():
-            while st.session_state.get('elapsed_time', 0) < 1:
-                elapsed_time = time.time() - start_time
-                st.session_state['elapsed_time'] = elapsed_time
-                st.write(f"Elapsed Time: {elapsed_time:.2f} sec")
-                time.sleep(1)
 
         results, total_time = generate_and_verify_emails(names_domains)
 
         df = pd.DataFrame(results)
         st.write(df)
 
-        # Show real-time progress
-        st.text(st.session_state['progress'])
-
-        # Show total time taken
-        st.write(f"Total time taken: {total_time:.2f} seconds")
+        # Show total time taken in minutes
+        total_time_minutes = total_time / 60
+        st.write(f"Total time taken: {total_time_minutes:.2f} minutes")
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
