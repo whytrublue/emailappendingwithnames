@@ -27,10 +27,10 @@ email_formats = [
 ]
 
 # Free email domains to skip
-free_email_domains = [
+free_email_domains = {
     "gmail.com", "yahoo.com", "hotmail.com", "aol.com", "live.com",
     "outlook.com", "icloud.com", "verizon.net", "protonmail.com", "zoho.com"
-]
+}
 
 # Functions
 def is_valid_email(email):
@@ -54,6 +54,7 @@ def smtp_check(email):
         mx_host = str(mx_records[0].exchange)
 
         with smtplib.SMTP(mx_host) as smtp:
+            smtp.starttls()  # Secure connection
             smtp.helo()
             smtp.mail('test@example.com')
             code, _ = smtp.rcpt(email)
@@ -80,12 +81,13 @@ def process_emails(queue, results):
             results.append({
                 "First Name": first,
                 "Last Name": last,
-                "Email": f"{domain}",
+                "Email": f"{first.lower()}.{last.lower()}@{domain.lower()}",
                 "Status": "Invalid"
             })
             queue.task_done()
             continue
 
+        valid_email_found = False
         for format_ in email_formats:
             email = format_.format(
                 first=first.lower(),
@@ -99,12 +101,14 @@ def process_emails(queue, results):
                     "Email": email,
                     "Status": "Valid"
                 })
+                valid_email_found = True
                 break
-        else:
+
+        if not valid_email_found:
             results.append({
                 "First Name": first,
                 "Last Name": last,
-                "Email": f"{domain}",
+                "Email": f"{first.lower()}.{last.lower()}@{domain.lower()}",
                 "Status": "Invalid"
             })
 
@@ -131,8 +135,7 @@ def generate_and_verify_emails(names_domains, num_threads=5):
 
 # Streamlit UI
 st.title("Email Verification: Upload CSV File")
-st.write("Subject Line 'First Name', 'Last Name', and 'Domain'.")
-st.write("Subject Line should be the same as above in Column A,B and C Respectively")
+st.write("Ensure CSV has 'First Name', 'Last Name', and 'Domain' in A B C columns.")
 
 uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
@@ -150,7 +153,23 @@ if uploaded_file is not None:
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
 
-        # Copy results
-        st.text_area("Copy Results", df.to_csv(index=False, sep="\t"), height=300)
+        # Filter option
+        filter_option = st.selectbox("Filter by Status:", ["All", "Valid", "Invalid", "Skipped (Free Email Domain)"])
+
+        # Apply filter
+        if filter_option == "All":
+            filtered_df = df
+        else:
+            filtered_df = df[df["Status"] == filter_option]
+
+        # Display filtered results
+        st.write(filtered_df)
+
+        # Convert filtered results to CSV format (without index)
+        filtered_csv = filtered_df.to_csv(index=False)
+
+        # Copy results (tab-separated values for Excel compatibility)
+        st.text_area("Copy Results", filtered_csv, height=300)
+    
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
