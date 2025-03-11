@@ -153,23 +153,8 @@ if uploaded_file is not None:
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
 
-        # Filter option
-        filter_option = st.selectbox("Filter by Status:", ["All", "Valid", "Invalid", "Skipped (Free Email Domain)"])
-
-        # Apply filter
-        if filter_option == "All":
-            filtered_df = df
-        else:
-            filtered_df = df[df["Status"] == filter_option]
-
-        # Display filtered results
-        st.write(filtered_df)
-
-        # Convert filtered results to CSV format (without index)
-        filtered_csv = filtered_df.to_csv(index=False)
-
         # Copy results (tab-separated values for Excel compatibility)
-        st.text_area("Copy Results", filtered_csv, height=300)
+        st.text_area("To Copy Results - Click Inside and Copy", df.to_csv(index=False, sep="\t"), height=300)
     
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
