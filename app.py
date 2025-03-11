@@ -131,7 +131,9 @@ def generate_and_verify_emails(names_domains, num_threads=5):
 
 # Streamlit UI
 st.title("Email Verification Tool")
-st.write("Upload a CSV file containing 'First Name', 'Last Name', and 'Domain'.")
+st.markdown("**Please upload a CSV file with the following format:**")
+st.markdown("**First Name in Column A, Last Name in Column B, and Domain in Column C.**")
+st.write("Ensure the column names match exactly: 'First Name', 'Last Name', and 'Domain'.")
 
 uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
 
@@ -148,5 +150,9 @@ if uploaded_file is not None:
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results", csv, "email_validation_results.csv", "text/csv")
+
+        # Copy results
+        results_text = df.to_csv(index=False, sep='\t')
+        st.text_area("Copy Results", results_text, height=200)
     else:
         st.error("CSV file must contain 'First Name', 'Last Name', and 'Domain' columns.")
