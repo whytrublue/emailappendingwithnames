@@ -69,7 +69,7 @@ def process_emails(queue, results, progress, total, start_time, lock):
 
         with lock:
             progress[0] += 1
-            st.write(f"Processing email {progress[0]}/{total}")
+            st.write(f"\rElapsed Time: {int(time.time() - start_time)} sec", end='')
 
         if domain.lower() in free_email_domains:
             results.append({
@@ -133,11 +133,6 @@ def generate_and_verify_emails(names_domains, num_threads=5):
         thread.start()
         threads.append(thread)
 
-    while any(thread.is_alive() for thread in threads):
-        elapsed_time = int(time.time() - start_time)
-        st.write(f"Elapsed Time: {elapsed_time} sec")
-        time.sleep(1)
-
     for thread in threads:
         thread.join()
 
@@ -162,13 +157,13 @@ if uploaded_file is not None:
         df = pd.DataFrame(results)
         st.write(df)
         
-        # Show total time taken in minutes
-        minutes = total_time // 60
-        st.write(f"Total time taken: {int(minutes)} min")
+        # Show total time taken in minutes and seconds
+        minutes, seconds = divmod(total_time, 60)
+        st.write(f"Total time taken: {int(minutes)} min {int(seconds)} sec")
         
         # Copy results button
         if st.button("Copy Verification Results"):
-            st.write(df.to_csv(index=False, sep='\t'))
+            st.text_area("Verification Results", df.to_csv(index=False, sep='\t'))
         
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
